@@ -1,10 +1,13 @@
 using System.Collections.Generic;
+using System.Linq;
+using ThanhDV.PackageManager.Core;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
+using PackageInfo = ThanhDV.PackageManager.Core.PackageInfo;
 
-namespace ThanhDV.PackageManager
+namespace ThanhDV.PackageManager.UI
 {
     public class ThanhDVPackageManagerWindow : EditorWindow
     {
@@ -12,16 +15,9 @@ namespace ThanhDV.PackageManager
         private const string UxmlFileName = "ThanhDVPackageManagerWindow.uxml";
         private const string UssFileName = "ThanhDVPackageManagerWindow.uss";
 
-        private class PackageInfo
-        {
-            public string DisplayName;
-            public string Name;
-            public string Version;
-            public string Description;
-        }
-
         // Sample data list (will be replaced with real data later)
-        private List<PackageInfo> allPackages;
+        private List<PackageInfo> allPackages = new();
+        private List<PackageInfo> currentlyDisplayedPackages = new();
 
         // UI components
         private ListView packageListView;
@@ -30,6 +26,7 @@ namespace ThanhDV.PackageManager
         private Label packageVersionLabel;
         private Label packageDescriptionLabel;
 
+        private string curTab = "all-packages-button";
         private ToolbarButton allPackagesButton;
         private ToolbarButton unityPackageButton;
         private ToolbarButton verdaccioButton;
@@ -64,13 +61,13 @@ namespace ThanhDV.PackageManager
                 }
                 catch (System.Exception ex)
                 {
-                    Debug.LogError($"[CustomPackageManager] Failed to clone UXML '{uxmlAssetPath}'. {ex.GetType().Name}: {ex.Message}\nFalling back to code-built UI.");
+                    Debug.Log($"<color=red>[TPM] Failed to clone UXML '{uxmlAssetPath}.</color>\n{ex}");
                     BuildFallbackUI(root);
                 }
             }
             else
             {
-                Debug.LogWarning($"[CustomPackageManager] UXML not found at '{uxmlAssetPath}'. Building a temporary UI in code to avoid a NullReference.");
+                Debug.Log($"<color=red>[TPM] UXML not found at '{uxmlAssetPath}'. Building a temporary UI in code to avoid a NullReference.</color>");
                 BuildFallbackUI(root);
             }
 
@@ -82,7 +79,7 @@ namespace ThanhDV.PackageManager
             }
             else
             {
-                Debug.LogWarning($"[CustomPackageManager] USS not found at '{ussAssetPath}'. UI will use default styling.");
+                Debug.Log($"<color=yellow>[TPM] USS not found at '{ussAssetPath}'. UI will use default styling.</color>");
             }
 
             // Query UI references from UXML
@@ -94,13 +91,11 @@ namespace ThanhDV.PackageManager
 
             if (packageListView == null || detailsPane == null || packageNameLabel == null || packageVersionLabel == null || packageDescriptionLabel == null)
             {
-                Debug.LogError("[CustomPackageManager] UI not initialized correctly (required elements are missing). Make sure the UXML contains elements named: 'package-list', 'details-pane', 'package-name', 'package-version', 'package-description'.");
+                Debug.Log("<color=red>[TPM] UI not initialized correctly (required elements are missing). Make sure the UXML contains elements named: 'package-list', 'details-pane', 'package-name', 'package-version', 'package-description'.</color>");
                 return;
             }
 
-            // Initialize sample data
-            InitializeSampleData();
-
+            LoadAllPackageInfo();
             // Configure the ListView
             ConfigureListView();
 
@@ -112,7 +107,7 @@ namespace ThanhDV.PackageManager
 
             // Ensure initial split size is applied; if view data hasn't been restored yet,
             // set the fixed pane dimension programmatically.
-            var split = root.Q<UnityEngine.UIElements.TwoPaneSplitView>();
+            var split = root.Q<TwoPaneSplitView>();
             if (split != null)
             {
                 // If no stored view data, apply initial size (matches UXML 300)
@@ -139,7 +134,7 @@ namespace ThanhDV.PackageManager
 
             if (allPackagesButton == null || unityPackageButton == null || verdaccioButton == null)
             {
-                Debug.LogError("[CustomPackageManager] Tab buttons not found in UXML. Ensure the toolbar and ToolbarButton elements use the UnityEditor.UIElements namespace and correct names.");
+                Debug.Log("<color=red>[TPM] Tab buttons not found in UXML. Ensure the toolbar and ToolbarButton elements use the UnityEditor.UIElements namespace and correct names.</color>");
             }
             else
             {
@@ -151,6 +146,74 @@ namespace ThanhDV.PackageManager
 
             // ...rest of CreateGUI() remains unchanged...
             detailsPane.style.visibility = Visibility.Hidden;
+        }
+
+        private void LoadAllPackageInfo()
+        {
+            EditorUtility.DisplayProgressBar("Loading Packages", "Đang kết nối đến server....", 0f);
+
+            PackageManagerService.Fetch(database =>
+            {
+                allPackages.Clear();
+
+                if (database.UnityPackages != null)
+                {
+                    for (int i = 0; i < database.UnityPackages.packages.Count; i++)
+                    {
+                        UnityPackageData pkgData = database.UnityPackages.packages[i];
+                        var lastestVersion = pkgData.versions.Keys.Max();
+
+                        PackageInfo pkgInfo = new()
+                        {
+                            DisplayName = pkgData.displayName,
+                            Name = pkgData.name,
+                            Version = lastestVersion,
+                            Description = pkgData.description,
+                            Source = PackageSource.UnityPackage
+                        };
+
+                        allPackages.Add(pkgInfo);
+                    }
+                }
+
+                if (database.VerdaccioPackages != null)
+                {
+                    for (int i = 0; i < database.VerdaccioPackages.packages.Count; i++)
+                    {
+                        VerdaccioPackage pkgData = database.VerdaccioPackages.packages[i];
+
+                        PackageInfo pkgInfo = new()
+                        {
+                            DisplayName = pkgData.displayName,
+                            Name = pkgData.name,
+                            Version = pkgData.version,
+                            Description = pkgData.description,
+                            Source = PackageSource.Verdaccio
+                        };
+
+                        allPackages.Add(pkgInfo);
+                    }
+                }
+
+                allPackages = allPackages.OrderBy(p => p.DisplayName).ToList();
+
+                FilterAndRefreshList();
+
+                EditorUtility.ClearProgressBar();
+            });
+        }
+
+        private void FilterAndRefreshList()
+        {
+            currentlyDisplayedPackages = curTab switch
+            {
+                "unitypackage-button" => allPackages.Where(p => p.Source == PackageSource.UnityPackage).ToList(),
+                "verdaccio-button" => allPackages.Where(p => p.Source == PackageSource.Verdaccio).ToList(),
+                _ => new List<PackageInfo>(allPackages), // All
+            };
+
+            packageListView.itemsSource = currentlyDisplayedPackages;
+            packageListView.Rebuild();
         }
 
         /// <summary>
@@ -167,15 +230,8 @@ namespace ThanhDV.PackageManager
             selectedButton.AddToClassList("tab-button-selected");
 
             // 3. Re-filter the package list (logic to be implemented)
-            string selectedTabName = selectedButton.name;
-            Debug.Log($"Switched to tab: {selectedTabName}");
-
-            // TODO: Implement logic to filter packageListView.itemsSource
-            // Example:
-            // if (selectedTabName == "unitypackage-button") {
-            //     packageListView.itemsSource = allPackages.Where(p => p.Source == "UnityPackage").ToList();
-            // } else { ... }
-            // packageListView.Rebuild();
+            curTab = selectedButton.name;
+            FilterAndRefreshList();
         }
 
         private string GetThisScriptFolder()
@@ -252,33 +308,24 @@ namespace ThanhDV.PackageManager
         private void ConfigureListView()
         {
             // Create a visual item for each row in the list
-            packageListView.makeItem = () =>
-            {
-                var label = new Label();
-                label.AddToClassList("package-list-item");
-                return label;
-            };
+            packageListView.makeItem = () => new Label();
 
             // Bind data from a PackageInfo to a visual item
             packageListView.bindItem = (element, index) =>
             {
-                var label = element as Label;
-                label.text = allPackages[index].DisplayName;
+                Label label = element as Label;
+                label.text = currentlyDisplayedPackages[index].DisplayName;
+
                 label.style.paddingLeft = 5;
                 label.style.paddingTop = 2;
                 label.style.paddingBottom = 2;
             };
-
-            // Assign the data source for the ListView
-            packageListView.itemsSource = allPackages;
         }
 
         private void OnPackageSelectionChange(IEnumerable<object> selectedItems)
         {
             // Get the selected package
-            var selectedPackage = packageListView.selectedItem as PackageInfo;
-
-            if (selectedPackage == null)
+            if (packageListView.selectedItem is not PackageInfo selectedPackage)
             {
                 detailsPane.style.visibility = Visibility.Hidden;
                 return;
@@ -289,35 +336,6 @@ namespace ThanhDV.PackageManager
             packageNameLabel.text = selectedPackage.DisplayName;
             packageVersionLabel.text = $"Version: {selectedPackage.Version} | Name: {selectedPackage.Name}";
             packageDescriptionLabel.text = selectedPackage.Description;
-        }
-
-        // This method creates mock data
-        private void InitializeSampleData()
-        {
-            allPackages = new List<PackageInfo>
-        {
-            new PackageInfo
-            {
-                DisplayName = "Core Library",
-                Name = "com.my-company.core-library",
-                Version = "1.2.1",
-                Description = "Core library containing basic utility functions and shared systems used across the entire project."
-            },
-            new PackageInfo
-            {
-                DisplayName = "Awesome Physics",
-                Name = "com.my-company.awesome-physics",
-                Version = "2.0.0",
-                Description = "Custom physics engine for special effects, collisions, and advanced interactions."
-            },
-            new PackageInfo
-            {
-                DisplayName = "UI Toolkit Pro",
-                Name = "com.my-company.ui-toolkit-pro",
-                Version = "3.5.0-preview",
-                Description = "Extended user interface toolkit with many components and nice visual effects."
-            }
-        };
         }
     }
 }
