@@ -1,0 +1,43 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="False">
+    <uie:Toolbar>
+        <ui:VisualElement style="flex-grow: 1;" />
+        <uie:ToolbarSearchField class="search-box" />
+    </uie:Toolbar>
+    <uie:Toolbar name="source-tabs">
+        <uie:ToolbarButton text="All" name="all-packages-button" class="tab-button tab-button-selected" />
+        <uie:ToolbarButton text="UnityPackage" name="unitypackage-button" class="tab-button" />
+        <uie:ToolbarButton text="Verdaccio" name="verdaccio-button" class="tab-button" />
+    </uie:Toolbar>
+    <ui:VisualElement name="TwoPaneSplitView" class="two-pane-container">
+        <ui:VisualElement name="left-pane" class="left-pane">
+            <ui:ListView name="package-list" fixed-item-height="25" />
+            <ui:Label text="List is empty" name="empty-list-label" class="empty-list-label" />
+        </ui:VisualElement>
+        <ui:VisualElement name="details-pane" class="right-pane">
+            <ui:VisualElement class="details-header">
+                <ui:Label name="package-name" class="header" />
+                <ui:VisualElement class="button-group">
+                    <ui:Button name="install-button" text="Install" />
+                    <ui:Button name="update-button" text="Update" />
+                    <ui:Button name="remove-button" text="Remove" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:Label name="package-version" class="sub-header" />
+            <uie:Toolbar name="detail-tabs" class="detail-tabs">
+                <uie:ToolbarButton text="Description" name="description-tab" class="tab-button tab-button-selected" />
+                <uie:ToolbarButton text="Version History" name="versions-tab" class="tab-button" />
+                <uie:ToolbarButton text="Dependencies" name="dependencies-tab" class="tab-button" />
+            </uie:Toolbar>
+            <ui:VisualElement name="detail-content-container" class="detail-content-container">
+                <ui:ScrollView>
+                    <ui:Label name="package-description" class="description" />
+                </ui:ScrollView>
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+    <uie:Toolbar name="status-bar" class="status-bar">
+        <ui:Label name="last-update-label" text="Last updated: N/A" />
+        <ui:VisualElement style="flex-grow: 1;" />
+        <ui:Button name="refresh-button" class="refresh-button" />
+    </uie:Toolbar>
+</ui:UXML>

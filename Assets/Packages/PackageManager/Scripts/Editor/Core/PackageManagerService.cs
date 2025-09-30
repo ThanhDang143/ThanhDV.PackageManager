@@ -23,8 +23,8 @@ namespace ThanhDV.PackageManager.Core
         {
             if (config == null || string.IsNullOrEmpty(config.VerdaccioSearchURL) || string.IsNullOrEmpty(config.UnityPackageRegistryURL))
             {
-                Debug.Log("<color=red>[TPM] URL chưa được cấu hình. Vui lòng kiểm tra file config.json.</color>");
-                onCompleted?.Invoke(new PackageDatabase()); // Trả về database rỗng
+                Debug.Log("<color=red>[TPM] URLs are not configured. Please check the config.json file!!!</color>");
+                onCompleted?.Invoke(new PackageDatabase());
                 return;
             }
 
@@ -71,7 +71,7 @@ namespace ThanhDV.PackageManager.Core
                 }
                 else
                 {
-                    Debug.Log($"<color=red>[TPM] Lỗi khi tải UnityPackage registry.</color>\n{request.error}");
+                    Debug.Log($"<color=red>[TPM] Error fetching UnityPackage registry!!!</color>\n{request.error}");
                     onError?.Invoke();
                 }
 
@@ -95,7 +95,7 @@ namespace ThanhDV.PackageManager.Core
                 }
                 else
                 {
-                    Debug.Log($"<color=red>[TPM] Lỗi khi truy vấn Verdaccio.</color>\n{request.error}");
+                    Debug.Log($"<color=red>[TPM] Error querying Verdaccio!!!</color>\n{request.error}");
                     onError?.Invoke();
                 }
                 request.Dispose();
@@ -124,7 +124,7 @@ namespace ThanhDV.PackageManager.Core
             }
             catch (Exception e)
             {
-                Debug.Log($"<color=red>[TPM] Đã xảy ra lỗi khi đọc file config.json. Fallback to default settings.</color>\n{e.Message}");
+                Debug.Log($"<color=red>[TPM] An error occurred while reading config.json. Fallback to default settings!!!</color>\n{e.Message}");
                 config = new URLConfig();
             }
         }
@@ -138,7 +138,7 @@ namespace ThanhDV.PackageManager.Core
             string[] guids = AssetDatabase.FindAssets($"t:MonoScript {nameof(PackageManagerService)}");
             if (guids.Length == 0)
             {
-                Debug.Log($"<color=red>[TPM] Không thể tìm thấy script '{nameof(PackageManagerService)}.cs'.</color>");
+                Debug.Log($"<color=red>[TPM] Could not find script '{nameof(PackageManagerService)}.cs'!!!</color>");
                 return false;
             }
 
